@@ -23,13 +23,10 @@ type Scheduler struct {
 }
 
 func NewScheduler(repo *repository.MessageRepository, webhookSender *sender.WebhookSender) *Scheduler {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
 		stopChan:      make(chan struct{}),
 		repo:          repo,
 		webhookSender: webhookSender,
-		ctx:           ctx,
-		cancel:        cancel,
 	}
 }
 
@@ -43,10 +40,13 @@ func (s *Scheduler) Start() error {
 
 	s.isRunning = true
 	s.ticker = time.NewTicker(2 * time.Minute)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	log.Println("Scheduler started - will send 2 messages every 2 minutes")
 
 	go s.run()
+
+	go s.processMessages()
 
 	return nil
 }
@@ -63,7 +63,9 @@ func (s *Scheduler) Stop() {
 	if s.ticker != nil {
 		s.ticker.Stop()
 	}
-	s.cancel()
+	if s.cancel != nil {
+		s.cancel()
+	}
 
 	log.Println("Scheduler stopped")
 }

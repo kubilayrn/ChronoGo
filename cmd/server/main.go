@@ -32,6 +32,12 @@ func main() {
 	scheduler := queue.NewScheduler(messageRepo, webhookSender)
 	h := handler.NewHandler(messageRepo, scheduler)
 
+	if err := scheduler.Start(); err != nil {
+		log.Printf("Failed to start scheduler automatically: %v", err)
+	} else {
+		log.Println("Scheduler started automatically on deployment")
+	}
+
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
