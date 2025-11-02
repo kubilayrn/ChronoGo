@@ -10,13 +10,33 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
 	"github.com/kubilayrn/ChronoGo/internal/database"
 	"github.com/kubilayrn/ChronoGo/internal/handler"
 	"github.com/kubilayrn/ChronoGo/internal/queue"
 	"github.com/kubilayrn/ChronoGo/internal/repository"
 	"github.com/kubilayrn/ChronoGo/internal/sender"
+
+	_ "github.com/kubilayrn/ChronoGo/docs"
 )
 
+// @title           ChronoGo API
+// @version         1.0
+// @description     Automatic message sending system API
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.email  support@chronogo.com
+
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host      localhost:8080
+// @BasePath  /api
+
+// @schemes http https
 func main() {
 
 	ctx := context.Background()
@@ -62,6 +82,8 @@ func main() {
 		api.GET("/messages/sent", h.ListSentMessages)
 		api.POST("/scheduler/toggle", h.ToggleScheduler)
 	}
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	srv := &http.Server{
 		Addr:    ":8080",

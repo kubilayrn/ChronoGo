@@ -1,0 +1,97 @@
+basePath: /api
+definitions:
+  handler.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  handler.ListSentMessagesResponse:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/handler.MessageResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  handler.MessageResponse:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      message_id:
+        type: string
+      sent_at:
+        type: string
+      status:
+        type: string
+      to:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handler.ToggleSchedulerResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@chronogo.com
+    name: API Support
+  description: Automatic message sending system API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: ChronoGo API
+  version: "1.0"
+paths:
+  /messages/sent:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all messages that have been sent
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ListSentMessagesResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Get list of sent messages
+      tags:
+      - messages
+  /scheduler/toggle:
+    post:
+      consumes:
+      - application/json
+      description: Start or stop the automatic message sending scheduler
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ToggleSchedulerResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Toggle scheduler on/off
+      tags:
+      - scheduler
+schemes:
+- http
+- https
+swagger: "2.0"
