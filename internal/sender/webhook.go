@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 )
 
 type WebhookRequest struct {
@@ -29,8 +31,17 @@ type WebhookSender struct {
 }
 
 func NewWebhookSender() *WebhookSender {
-	url := getEnv("WEBHOOK_URL", "https://webhook.site/c3f13233-1ed4-429e-9649-8133b3b9c9cd")
-	authKey := getEnv("WEBHOOK_AUTH_KEY", "INS.me1x9uMcyYGlhKKQVPoc.bO3j9aZwRTOcA2Ywo")
+	_ = godotenv.Load()
+
+	url := os.Getenv("WEBHOOK_URL")
+	authKey := os.Getenv("WEBHOOK_AUTH_KEY")
+
+	if url == "" {
+		log.Fatal("WEBHOOK_URL environment variable is required")
+	}
+	if authKey == "" {
+		log.Fatal("WEBHOOK_AUTH_KEY environment variable is required")
+	}
 
 	return &WebhookSender{
 		client: &http.Client{
@@ -71,22 +82,30 @@ func (s *WebhookSender) SendMessage(to, content string) (*uuid.UUID, error) {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusAccepted {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
 	}
 
 	var webhookResp WebhookResponse
 	if err := json.Unmarshal(body, &webhookResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		responseStr := string(body)
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
+			// Check if it's HTML or plain text (not JSON)
+			if len(responseStr) > 0 && (responseStr[0] != '{' && responseStr[0] != '[') {
+				mockID := uuid.New()
+				log.Printf("Warning: Webhook returned non-JSON response (HTML/text), using mock messageId: %s", mockID.String())
+				return &mockID, nil
+			}
+		}
+		return nil, fmt.Errorf("failed to unmarshal response: %w, body: %s", err, responseStr)
+	}
+
+	// check response messageId
+	if webhookResp.MessageID == uuid.Nil {
+		mockID := uuid.New()
+		log.Printf("Warning: Webhook returned empty messageId, using mock: %s", mockID.String())
+		return &mockID, nil
 	}
 
 	return &webhookResp.MessageID, nil
-}
-
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }

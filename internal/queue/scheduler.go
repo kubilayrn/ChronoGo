@@ -3,10 +3,14 @@ package queue
 import (
 	"context"
 	"log"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/kubilayrn/ChronoGo/internal/model"
+	"github.com/kubilayrn/ChronoGo/internal/redis"
 	"github.com/kubilayrn/ChronoGo/internal/repository"
 	"github.com/kubilayrn/ChronoGo/internal/sender"
 )
@@ -20,13 +24,22 @@ type Scheduler struct {
 	webhookSender *sender.WebhookSender
 	ctx           context.Context
 	cancel        context.CancelFunc
+	interval      time.Duration
+	messageLimit  int
 }
 
 func NewScheduler(repo *repository.MessageRepository, webhookSender *sender.WebhookSender) *Scheduler {
+	_ = godotenv.Load()
+
+	intervalMinutes := getEnvAsInt("SCHEDULER_INTERVAL_MINUTES", 2)
+	messageLimit := getEnvAsInt("SCHEDULER_MESSAGE_LIMIT", 2)
+
 	return &Scheduler{
 		stopChan:      make(chan struct{}),
 		repo:          repo,
 		webhookSender: webhookSender,
+		interval:      time.Duration(intervalMinutes) * time.Minute,
+		messageLimit:  messageLimit,
 	}
 }
 
@@ -39,10 +52,10 @@ func (s *Scheduler) Start() error {
 	}
 
 	s.isRunning = true
-	s.ticker = time.NewTicker(2 * time.Minute)
+	s.ticker = time.NewTicker(s.interval)
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
-	log.Println("Scheduler started - will send 2 messages every 2 minutes")
+	log.Printf("Scheduler started - will send %d messages every %v", s.messageLimit, s.interval)
 
 	go s.run()
 
@@ -92,7 +105,7 @@ func (s *Scheduler) run() {
 func (s *Scheduler) processMessages() {
 	ctx := context.Background()
 
-	messages, err := s.repo.GetUnsentMessages(ctx, 2)
+	messages, err := s.repo.GetUnsentMessages(ctx, s.messageLimit)
 	if err != nil {
 		log.Printf("Failed to fetch unsent messages: %v", err)
 		return
@@ -124,6 +137,27 @@ func (s *Scheduler) sendMessage(ctx context.Context, msg model.Message) error {
 		return err
 	}
 
+	if redis.Client != nil {
+		if cacheErr := redis.CacheMessage(ctx, *messageID, now); cacheErr != nil {
+			log.Printf("Failed to cache message to Redis: %v", cacheErr)
+		} else {
+			log.Printf("Cached messageId %s to Redis", messageID.String())
+		}
+	}
+
 	log.Printf("Successfully sent message ID %d to %s (messageId: %s)", msg.ID, msg.To, messageID.String())
 	return nil
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	intValue, err := strconv.Atoi(value)
+	if err != nil {
+		log.Printf("Invalid value for %s, using default %d", key, defaultValue)
+		return defaultValue
+	}
+	return intValue
 }

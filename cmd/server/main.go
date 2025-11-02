@@ -16,6 +16,7 @@ import (
 	"github.com/kubilayrn/ChronoGo/internal/database"
 	"github.com/kubilayrn/ChronoGo/internal/handler"
 	"github.com/kubilayrn/ChronoGo/internal/queue"
+	"github.com/kubilayrn/ChronoGo/internal/redis"
 	"github.com/kubilayrn/ChronoGo/internal/repository"
 	"github.com/kubilayrn/ChronoGo/internal/sender"
 
@@ -46,6 +47,14 @@ func main() {
 	}
 	defer database.Close()
 	log.Println("Database connection established")
+
+	redisConfig := redis.LoadConfigFromEnv()
+	if err := redis.Connect(ctx, redisConfig); err != nil {
+		log.Printf("Failed to connect to Redis (continuing without cache): %v", err)
+	} else {
+		defer redis.Close()
+		log.Println("Redis connection established")
+	}
 
 	messageRepo := repository.NewMessageRepository()
 	webhookSender := sender.NewWebhookSender()
