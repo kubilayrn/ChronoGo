@@ -12,6 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kubilayrn/ChronoGo/internal/database"
 	"github.com/kubilayrn/ChronoGo/internal/handler"
+	"github.com/kubilayrn/ChronoGo/internal/queue"
+	"github.com/kubilayrn/ChronoGo/internal/repository"
+	"github.com/kubilayrn/ChronoGo/internal/sender"
 )
 
 func main() {
@@ -23,6 +26,11 @@ func main() {
 	}
 	defer database.Close()
 	log.Println("Database connection established")
+
+	messageRepo := repository.NewMessageRepository()
+	webhookSender := sender.NewWebhookSender()
+	scheduler := queue.NewScheduler(messageRepo, webhookSender)
+	h := handler.NewHandler(messageRepo, scheduler)
 
 	r := gin.Default()
 
@@ -45,9 +53,8 @@ func main() {
 
 	api := r.Group("/api")
 	{
-		api.GET("/messages/sent", handler.ListSentMessages)
-		api.POST("/scheduler/start", handler.StartScheduler)
-		api.POST("/scheduler/stop", handler.StopScheduler)
+		api.GET("/messages/sent", h.ListSentMessages)
+		api.POST("/scheduler/toggle", h.ToggleScheduler)
 	}
 
 	srv := &http.Server{
